@@ -1,0 +1,210 @@
+import h5py
+
+import tensorflow as tf
+from tensorflow import keras
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+!ls -lh drive/MyDrive/data
+
+!pip3 install lime
+from lime import lime_image
+
+import os
+import cv2
+import numpy as np
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
+
+train_folder = "drive/MyDrive/data/train"
+test_folder = "drive/MyDrive/data/test"
+image_size = (220, 220)  # Specify the desired image size
+train_images, train_labels = load_and_resize_images_from_folder(train_folder, image_size)
+
+test_images, test_labels = load_and_resize_images_from_folder(test_folder, image_size)
+
+label_mapping = {'infected': 0, 'notinfected': 1}
+train_labels = [label_mapping[label] for label in train_labels]
+test_labels = [label_mapping[label] for label in test_labels]
+
+X_train = np.array(train_images)
+X_test = np.array(test_images)
+Y_train = np.array(train_labels)
+Y_test = np.array(test_labels)
+
+X_train = np.expand_dims(X_train, axis=-1)
+X_test = np.expand_dims(X_test, axis=-1)
+
+X_train = X_train / 255.0
+X_test = X_test / 255.0
+
+X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=0.2, random_state=42)
+
+X_train = tf.convert_to_tensor(X_train, dtype=tf.float32)
+X_val = tf.convert_to_tensor(X_val, dtype=tf.float32)
+X_test = tf.convert_to_tensor(X_test, dtype=tf.float32)
+Y_train = tf.convert_to_tensor(Y_train, dtype=tf.float32)
+Y_val = tf.convert_to_tensor(Y_val, dtype=tf.float32)
+Y_test = tf.convert_to_tensor(Y_test, dtype=tf.float32)
+
+def load_and_resize_images_from_folder(folder, image_size):
+    images = []
+    labels = []
+    for subfolder in os.listdir(folder):
+        subfolder_path = os.path.join(folder, subfolder)
+        if os.path.isdir(subfolder_path):
+            for filename in os.listdir(subfolder_path):
+                img_path = os.path.join(subfolder_path, filename)
+                if os.path.isfile(img_path):
+                    img = cv2.imread(img_path, 0)  # Load images in grayscale
+                    if img is not None:
+                        img = cv2.resize(img, image_size)  # Resize images
+                        images.append(img)
+                        labels.append(subfolder)
+    return images, labels
+    
+train_images, train_labels = load_and_resize_images_from_folder(train_folder, image_size)
+
+test_images, test_labels = load_and_resize_images_from_folder(test_folder, image_size)
+
+label_mapping = {'infected': 0, 'notinfected': 1}
+train_labels = [label_mapping[label] for label in train_labels]
+test_labels = [label_mapping[label] for label in test_labels]
+
+X_train = np.array(train_images)
+X_test = np.array(test_images)
+Y_train = np.array(train_labels)
+Y_test = np.array(test_labels)
+
+X_train = np.expand_dims(X_train, axis=-1)
+X_test = np.expand_dims(X_test, axis=-1)
+
+X_train = X_train / 255.0
+X_test = X_test / 255.0
+
+X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=0.2, random_state=42)
+
+X_train = tf.convert_to_tensor(X_train, dtype=tf.float32)
+X_val = tf.convert_to_tensor(X_val, dtype=tf.float32)
+X_test = tf.convert_to_tensor(X_test, dtype=tf.float32)
+Y_train = tf.convert_to_tensor(Y_train, dtype=tf.float32)
+Y_val = tf.convert_to_tensor(Y_val, dtype=tf.float32)
+Y_test = tf.convert_to_tensor(Y_test, dtype=tf.float32)
+
+print("X_train shape:", X_train.shape)
+print("Y_train shape:", Y_train.shape)
+print("X_val shape:", X_val.shape)
+print("Y_val shape:", Y_val.shape)
+print("X_test shape:", X_test.shape)
+print("Y_test shape:", Y_test.shape)
+
+import tensorflow as tf
+from tensorflow.keras import layers
+
+# Defining Model
+model = tf.keras.Sequential()
+
+# Adding Convolutional Layers
+model.add(layers.Conv2D(16, (5, 5), activation='relu', input_shape=(220, 220, 1)))
+model.add(layers.MaxPooling2D((6, 6)))
+
+model.add(layers.Conv2D(12, (5, 5), activation='relu'))
+model.add(layers.MaxPooling2D((6, 6)))
+
+model.add(layers.Conv2D(10, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
+
+# Adding dropout layer
+model.add(layers.Dropout(0.5))
+
+# Flatten the output
+model.add(layers.Flatten())
+
+# Adding dense layers
+model.add(layers.Dense(64, activation='relu'))
+model.add(layers.Dense(1, activation='sigmoid'))  # Assuming binary classification
+
+model.summary()
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Train the model
+model.fit(X_train, Y_train, batch_size=32, epochs=10, validation_data=(X_val, Y_val))
+
+# Evaluate the model on the training set
+train_loss, train_accuracy = model.evaluate(X_train, Y_train)
+print("Train Loss:", train_loss)
+print("Train Accuracy:", train_accuracy)
+
+# Evaluate the model on the test set
+test_loss, test_accuracy = model.evaluate(X_test, Y_test)
+print("Test Loss:", test_loss)
+print("Test Accuracy:", test_accuracy)
+
+import numpy as np
+
+random_index = np.random.randint(0, len(X_test))
+random_image = X_test[random_index]
+random_label = Y_test[random_index]
+
+random_image = np.expand_dims(random_image, axis=0)
+
+prediction = model.predict(random_image)
+
+predicted_label = "notinfected" if prediction > 0.5 else "infected"
+
+print("True Label:", "notinfected" if random_label > 0.5 else "infected")
+print("Predicted Label:", predicted_label)
+
+model.save("saved_model.h5")
+
+import numpy as np
+from keras.models import load_model
+import lime
+import lime.lime_image
+from skimage.segmentation import slic
+
+# Load the trained CNN model
+model_path = 'saved_model.h5'
+model = load_model(model_path)
+
+random_index = np.random.randint(0, len(X_test))
+random_image = X_test[random_index]
+random_label = Y_test[random_index]
+
+# Convert the image to a NumPy array
+random_image = random_image.numpy()
+
+explainer = lime.lime_image.LimeImageExplainer()
+
+segmenter = lambda img: slic(img, n_segments=100, compactness=1)
+
+explanation = explainer.explain_instance(
+    random_image,
+    classifier_fn=model.predict,
+    top_labels=1,
+    hide_color=0,
+    num_samples=1000,
+    segmentation_fn=segmenter
+)
+
+lime_exp = explanation.get_image_and_mask(
+    explanation.top_labels[0],
+    positive_only=True,
+    num_features=5,
+    hide_rest=True
+)
+
+# Displaying the image and LIME explanation
+import matplotlib.pyplot as plt
+
+plt.subplot(1, 2, 1)
+plt.imshow(random_image)
+plt.title('Original Image')
+
+plt.subplot(1, 2, 2)
+plt.imshow(lime_exp[0])
+plt.title('LIME Explanation')
+
+plt.show()
