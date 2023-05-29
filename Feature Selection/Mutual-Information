@@ -1,0 +1,24 @@
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import mutual_info_classif, f_classif
+from matplotlib import pyplot
+ 
+def select_features_one(X_train, y_train, X_test):
+  fs = SelectKBest(score_func=mutual_info_classif, k='all')
+  fs.fit(X_train, y_train)
+  X_train_fs = fs.transform(X_train)
+  X_test_fs = fs.transform(X_test)
+  return X_train_fs, X_test_fs, fs
+ 
+PCOS_FX_train_MI, PCOS_FX_test_MI, fs = select_features_one(PCOS_FX_train,PCOS_FY_train,PCOS_FX_test)
+for i in range(len(fs.scores_)):
+  print(column_names[i], fs.scores_[i])
+
+pyplot.bar([i for i in range(len(fs.scores_))], fs.scores_)
+pyplot.show()
+
+PCOSMH_X_train_MI, PCOSMH_X_test_MI, fs = select_features_one(PCOSMH_X_train , PCOSMH_Y_train, PCOSMH_X_test)
+for i in range(len(fs.scores_)):
+  print(column_names2[i], fs.scores_[i])
+
+pyplot.bar([i for i in range(len(fs.scores_))], fs.scores_)
+pyplot.show()
