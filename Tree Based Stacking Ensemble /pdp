@@ -1,1 +1,14 @@
+n = 50
+PartialDependenceDisplay.from_estimator(
+    rf, X_train, ['Follicle No(R)'], kind="both", n_jobs=3, subsample=n
+)
+plt.legend(bbox_to_anchor=(1,1));
 
+sns.lineplot(x=values, y=individual.mean(axis=0), style=0, 
+             markers=True, legend=False)
+sns.lineplot(data=pd.DataFrame(individual, columns=values)\
+                    .sample(n).reset_index().melt('index'), 
+             x='variable', y='value', style='index', dashes=False, 
+             legend=False, alpha=0.1, size=1, color='#63C1A4')
+plt.ylabel("Partial Dependence")
+plt.xlabel(var);
