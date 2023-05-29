@@ -1,0 +1,8 @@
+from imblearn.over_sampling import SVMSMOTE
+def OverSampling(X_data,Y_data): # Using SMOTE SVM to obtain a 50-50 balanced dataset 
+  sm = resample=SVMSMOTE()
+  X, Y = sm.fit_resample(X_data, Y_data.ravel())
+  return X, Y
+  
+PCOSF_X, PCOSF_Y = OverSampling(XF_sample, YF_sample)
+PCOSMH_X, PCOSMH_Y = OverSampling(XMH_sample, YMH_sample)
