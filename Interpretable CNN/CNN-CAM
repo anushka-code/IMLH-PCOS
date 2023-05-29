@@ -1,0 +1,405 @@
+from google.colab import drive
+drive.mount('/content/drive')
+!nvidia-smi -L
+import numpy as np
+from PIL import Image
+import os
+from collections import defaultdict
+import os
+def upload_imgs(img_folder):
+
+  img_array = []
+  for file in os.listdir(img_folder): 
+    if len(file) >3 and file[:3] != "img":
+      print(file[:2])
+      continue
+
+    img_path = os.path.join(img_folder, file)
+    #print('IMAGE PATH: ', img_path)
+    # image = np.array(Image.open(img_path), dtype = int)/255
+    image = Image.open(img_path)
+    image = image.resize((224,224), Image.LANCZOS)
+    # image = image.astype('int64')
+    img_array.append(image)
+    #print(image.dtype)
+      
+  print('UPLOAD DONE')
+  return img_array
+  
+  from torchvision import transforms
+
+def augment(imgs):
+  imgs_copy = imgs
+
+  # vector of PIL imgs
+  augment1 = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+  ])
+
+  augment2 = transforms.Compose([
+      transforms.RandomHorizontalFlip(p = 0.25),
+      transforms.RandomVerticalFlip(p = 0.25),
+      transforms.RandomRotation(15, p = 0.25),
+      transforms.RandomRotation([90, 180, 270], p = 0.25),
+  ])
+
+  for i, img in enumerate(imgs_copy):
+    imgs_copy[i] = augment1(imgs_copy[i])
+    imgs_copy[i] = augment2(imgs_copy[i])
+
+  final_imgs = imgs + imgs_copy
+
+  return final_imgs
+
+
+def preprocess(imgs):
+
+  new_imgs = []
+  for i, img in enumerate(imgs):
+    temp_img = (np.array(img, dtype = int)/255)
+    if(len(temp_img.shape) != 3):
+      print("smit")
+    else:
+      new_imgs.append(temp_img)
+    # print(i, "--", imgs[i].shape)
+
+
+  return new_imgs
+  
+  def data_split(arr1, arr2):
+  # 1 for arr1
+  # 0 for arr2
+
+  tot_data = []
+  for el in arr1:
+    tot_data.append((el, 1))
+  for el in arr2:
+    tot_data.append((el, 0))
+  
+  all_imgs = [i[0] for i in tot_data]
+  all_labels = [i[1] for i in tot_data]
+
+  return all_imgs, all_labels
+
+
+import torch
+import torchvision
+import torch.utils.data as data
+
+class Dataloader(data.Dataset):
+  def __init__(self, imgs, labels):
+    super(Dataloader).__init__()
+
+    self.imgs = torch.from_numpy(imgs)
+    self.labels = labels
+    self.len = len(self.labels)
+
+    pos = np.sum(self.labels)
+    neg = len(self.labels) - pos
+    self.weights = torch.FloatTensor([1, neg / pos])
+  
+  def __len__(self):
+    return self.len
+  
+  def __getitem__(self, idx):
+    label = self.labels[idx]
+    if label == 1:
+        label = torch.FloatTensor([0, 1])
+    elif label == 0:
+        label = torch.FloatTensor([1, 0])
+    return (self.imgs[idx], label, self.weights)
+
+
+def init_weights(model):
+  for name, param in model.named_parameters():
+    nn.init.uniform_(param.data, -0.08, 0.08)
+    
+import torch
+import torch.nn as nn
+from torchvision import models
+
+# hook the feature extractor
+feature_blobs = []
+
+def hook_feature(output):
+    global feature_blobs
+    feature_blobs.append(output.data.cpu().numpy())
+
+class ICNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.pretrained_model = models.vgg16(pretrained=True)
+        # self.first_conv_layer = nn.Conv2d(1, 3, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True)
+        # self.first_conv_layer.extend(list(self.pretrained_model.features))  
+        # self.features= nn.Sequential(*self.first_conv_layer ) 
+
+        self.pooling_layer = nn.AdaptiveAvgPool2d(1)
+        self.classifer1 = nn.Linear(512, 64)
+        self.classifer2 = nn.Linear(64, 2)
+        
+ def forward(self, x, mode = "train"):
+        x = torch.squeeze(x, dim=0)
+        print(x.shape) 
+        # x = self.first_conv_layer(x)
+        features = self.pretrained_model.features(x)
+        if mode == "test":
+          hook_feature(features)
+        # self.pretrained_model._modules.get('features').register_forward_hook(hook_feature);
+
+        # print('1: ', x.shape)
+        pooled_features = self.pooling_layer(features)
+        # print('2: ', pooled_features.shape)
+        pooled_features = pooled_features.view(pooled_features.size()[0], -1)
+        # print('3: ', pooled_features.shape)
+        # flattened_features = torch.max(pooled_features, 0, keepdim=True)[0]
+        # print('3: ', flattened_features.shape)
+        # flattened_features = torch.squeeze(flattened_features, dim=0)
+        # print('4: ', flattened_features.shape)
+        fc_out1 = self.classifer1(pooled_features)
+        # print('FCOUT: ' ,fc_out1.shape)
+
+        output = self.classifer2(fc_out1)
+        return output
+
+import cv2
+
+def returnCAM(feature_conv, weight_sigmoid, class_idx):
+    size_upsample = (224, 224)
+    bz, nc, h, w = feature_conv.shape
+    print("feature conv: ", feature_conv.shape)
+    print("weight_sigmoid: ", weight_sigmoid.shape)
+    print("class_idx: ", class_idx.shape)
+    slice_cams = []
+    for s in range(bz):
+        for idx in class_idx:
+            cam = weight_sigmoid[idx].dot(feature_conv[s].reshape((nc, h*w)))
+            cam = cam.reshape(h, w)
+            cam = cam - np.min(cam)
+            cam_img = cam / np.max(cam)
+            cam_img = np.uint8(255 * cam_img)
+            slice_cams.append(cv2.resize(cam_img, size_upsample))
+    return slice_cams
+    
+!pip install TensorboardX
+
+import torch
+import torchvision
+import torch.optim as optim
+import torch.nn as nn
+import time
+import os
+import torch.utils.data as Data
+from tensorboardX import SummaryWriter
+from tqdm import tqdm
+from sklearn import metrics
+import matplotlib.pyplot as plt
+
+import torch
+import os
+import torch.utils.data as Data
+from tqdm import tqdm
+import numpy as np
+import math
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+
+
+def test(X_test, y_test):
+  model = ICNN()
+  checkpoint = torch.load('ICNN.pt')
+  model.load_state_dict(checkpoint['state_dict'])
+  #running_model = torch.load('multi_cnn.pt', map_location = device)
+
+  test_data = Dataloader(np.array(X_test), np.array(y_test))
+  logger = SummaryWriter(os.path.join(HOME, LOG_DIR, TIME + ': Test'))
+
+
+  test_loader = Data.DataLoader(Data.Subset(test_data,range(len(test_data))), opt['batch_size'],shuffle = True)
+  model.to(DEVICE)
+  
+  y_preds = []
+  y_trues = []
+  losses = []
+  test_corr = 0.0
+  itr = 0
+
+  for img, label, weight in tqdm(test_loader, ascii = True, desc = 'Test'):
+
+    img = img.permute(0,3,1,2).type(torch.cuda.FloatTensor).to(DEVICE)
+    label = label.to(DEVICE)
+    weight = weight.to(DEVICE)
+
+    params = list(model.parameters())
+    final_params = torch.matmul(params[-2], params[-4])
+    weight_sigmoid = np.squeeze(final_params.data.cpu().numpy())
+
+    output = model(img, "test")
+
+    sig_out = torch.sigmoid(output)
+    probs, idx = sig_out.sort(0, True)
+
+    probs = probs.cpu().numpy()
+    idx = idx.cpu().numpy()
+    new_idx = np.array([0,1])
+
+    slice_cams = returnCAM(feature_blobs[-1], weight_sigmoid, new_idx)
+    
+    for s in tqdm(range(label.shape[0]), leave=False):
+      img = img[s]
+      new_img = img.permute(1,2,0)
+      new_img = new_img.cpu().numpy()
+      for i, cam in enumerate(slice_cams):
+
+        heatmap = (cv2.cvtColor(cv2.applyColorMap(
+                        cv2.resize(slice_cams[s][i], (224, 224)),
+                        cv2.COLORMAP_JET), 
+                              cv2.COLOR_BGR2RGB)
+                  )
+        result = heatmap * 0.3 + new_img * 0.5  
+        
+        pil_img_cam = Image.fromarray(np.uint8(result))
+        # plt.subplot(1, 2, i + 1)
+  
+        plt.imshow(np.array(pil_img_cam))
+        plt.title('Not Infected' if i==0 else 'Infected')
+
+
+    for i in range(label.shape[0]):
+      y_trues.append(int(label[i][1]))
+      y_preds.append(sig_out[i][1].item())
+      
+      try:
+      auc = metrics.roc_auc_score(y_trues, y_preds)
+    except:
+      auc = 0.5
+
+    logger.add_scalar('test/AUC', auc, len(test_loader) + itr)
+    print("AUC: ", auc)
+
+
+def run(mode = "train", to_augment = False, only_train = False):
+    
+    print("MODE: ", mode)
+    root_dir = os.path.join(HOME, 'data', mode, 'infected')
+    print(root_dir)
+    mode_infected = upload_imgs(root_dir)
+    
+    root_dir = os.path.join(HOME, 'data', mode, 'notinfected')
+    mode_notinfected = upload_imgs(root_dir)
+
+    mode_infected_p = []
+    mode_notinfected_p = []
+    if(to_augment == True):
+        mode_infected_p = preprocess(augment(mode_infected))
+        # mode_notinfected_p = preprocess(augment(mode_notinfected))
+    else:
+      mode_infected_p = preprocess(mode_infected)
+      # mode_notinfected_p = preprocess(mode_notinfected)
+
+    mode_notinfected_p = []
+    mode_x, mode_y = data_split(mode_infected_p, mode_notinfected_p)
+
+    if(mode == "train"):
+      train(mode_x, mode_y)
+    elif(mode == "test"):
+      test(mode_x[:2000], mode_y[:2000])
+
+    return
+    
+
+if __name__ == '__main__':
+    LOG_DIR = 'logs'
+    HOME = '/content/drive/MyDrive'
+    SAVE_DIR = 'save'
+    TIME = time.strftime("%Y%m%d_%H%M%S")
+    DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
+    opt = {
+      'batch_size': 16,
+      'lr': 0.01,
+      'epochs': 10,
+      'train_len': 0.8,
+      'val_len': 0.2,
+      'out': 4,
+      'activation': 'RELU',
+    } 
+
+    run("train")
+    print("Smit Training Done")
+
+    run("test")
+    print("Smit Testing done")
+
+from sklearn.preprocessing import MinMaxScaler
+#from tensorflow.keras.layers import Lambda
+import csv
+import os
+from pathlib import Path
+
+
+def calculate_thresh(imp_arr, percent):
+  #gen_arr.sort(reverse = True)
+  imp_arr.sort(reverse = True)
+  ind = len(imp_arr)*percent
+  return imp_arr[int(ind)]
+
+
+def calculate_TMR(gen_arr, thresh):
+  return (sum(i>=thresh for i in gen_arr))/len(gen_arr)
+
+
+def normalise(gen_arr, imp_arr):
+  scaler = MinMaxScaler()
+  combined_list = []
+  combined_list.extend(gen_arr)
+  combined_list.extend(imp_arr)
+
+scaled_list = scaler.fit_transform(np.array(combined_list).reshape(-1,1)).tolist()
+  half = len(scaled_list)//2
+  return scaled_list[:half], scaled_list[half:]
+
+
+def cos_similar(A, B):
+  cos_sim=np.dot(A,B)/(np.linalg.norm(A)*np.linalg.norm(B))
+  return cos_sim
+
+
+def save_to_csv(gen, imp):
+  header = ['Normalized Score', 'Label']
+  file_path = '/content/drive/MyDrive/' #nd = no dilation, d = dilation
+  fle = Path(file_path)
+  fle.touch(exist_ok=True)
+  gen_save_arr = [[i,1] for i in gen]
+  imp_save_arr = [[i,0] for i in imp]
+  #if not os.path.exists(file_path):
+    # os.mkdir(file_path)
+  with open(file_path, 'a+', encoding = 'utf-8', newline ='') as f:
+    writer = csv.writer(f)
+    writer.writerow(header)
+    writer.writerows(gen_save_arr)
+    writer.writerows(imp_save_arr)
+    
+def save_score(score):
+  file_path = '/content/drive/MyDrive/scores.csv'
+  header = ['Model', 'Score', 'AF', 'OutNodes', 'BatchSz', 'LR']
+  if not os.path.exists(file_path):
+    with open(file_path, 'a+', encoding = 'utf-8', newline = '') as f:
+      writer = csv.writer(f)
+      writer.writerow(header)
+
+  fle = Path(file_path)
+  fle.touch(exist_ok=True)
+
+  data = [opt['model'], score, opt['activation'], opt['out'], opt['batch_size'], opt['lr']]
+
+  with open(file_path, 'a+', encoding = 'utf-8', newline = '') as f:
+    writer = csv.writer(f)
+    writer.writerow(data)
+
+
+#save_to_csv([1,2,3,4,5], [6,7,8,9,0])
