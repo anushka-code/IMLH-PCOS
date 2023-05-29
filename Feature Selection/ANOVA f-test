@@ -1,3 +1,5 @@
+from sklearn.feature_selection import f_classif
+
 def select_features_two(X_train, y_train, X_test):
  fs = SelectKBest(score_func=f_classif, k='all')
  fs.fit(X_train, y_train)
