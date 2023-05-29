@@ -1,0 +1,9 @@
+import shap
+shap.initjs()
+shap.explainers._deep.deep_tf.op_handlers["AddV2"] = shap.explainers._deep.deep_tf.passthrough
+shap_values = explainer_shap.shap_values(X = PCOS_FX_train.values[:], ranked_outputs=True)
+shap_values_arr = np.asarray(shap_values)
+shap.summary_plot(shap_values[0], PCOS_FX_train.values[:], feature_names=PCOS_FX_train.columns)
+shap.force_plot(explainer_shap.expected_value[0].numpy(), shap_values[0][0][1], features = PCOS_FX_train.columns, matplotlib=True)
+shap.decision_plot(explainer_shap.expected_value[0].numpy(), shap_values[0][0][1], features = PCOS_FX_train.iloc[0,:], feature_names = PCOS_FX_train.columns.tolist())
+shap.plots._waterfall.waterfall_legacy(explainer_shap.expected_value[0].numpy(), shap_values[0][0][1], feature_names = PCOS_FX_train.columns)
