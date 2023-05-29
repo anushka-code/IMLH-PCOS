@@ -1,0 +1,77 @@
+import pandas as pd
+import numpy as np
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+from google.colab import auth
+from oauth2client.client import GoogleCredentials
+from sklearn.preprocessing import MinMaxScaler
+
+auth.authenticate_user()
+gauth = GoogleAuth()
+gauth.credentials = GoogleCredentials.get_application_default()
+drive = GoogleDrive(gauth)
+
+def DataLoader(link, name_of_file):
+  id = link.split("/")[-2]
+  downloaded = drive.CreateFile({'id':id}) 
+  downloaded.GetContentFile(name_of_file)
+  dataframe = pd.read_csv(name_of_file, sep=r'\s*,\s*', header=0, engine='python')
+  return dataframe
+
+link = 'https://drive.google.com/file/d/1hSZgcPbG8xkMMZBkNRYw9ZCVO7VRaHBp/view?usp=sharing'
+name = 'PCOS_featuredata.csv"'
+df_pcosfeatures = DataLoader(link, name)
+
+link2 = 'https://drive.google.com/file/d/1fLPPZsSO5e9VULIs3s38nRtaeGZut2_8/view?usp=sharing'
+name2 = 'PCOS_depression.csv"'
+df_pcosmentalh = DataLoader(link2, name2)
+
+df_pcosfeatures.head(5)
+df_pcosfeatures.drop('Sl. No', axis=1, inplace=True)
+df_pcosfeatures.drop('Patient File No.', axis=1, inplace=True)
+df_pcosfeatures.drop('Unnamed: 44', axis=1, inplace=True)
+df_pcosfeatures_Y = df_pcosfeatures.iloc[:,0] 
+df_pcosfeatures_X = df_pcosfeatures.loc[:, df_pcosfeatures.columns != 'PCOS (Y/N)']
+df_pcosfeatures_X = df_pcosfeatures_X.iloc[:541,]
+df_pcosfeatures_Y
+df_pcosfeatures_Y = df_pcosfeatures_Y.iloc[:541,] 
+df_pcosfeatures_Y.head(5)
+df_pcosfeatures_Y = df_pcosfeatures_Y.to_frame()
+df_pcosfeatures_Y = df_pcosfeatures_Y.astype(int)
+print(df_pcosfeatures_Y['PCOS (Y/N)'].value_counts()) #Imbalanced dataset with 364 non-infected women and 177 PCOS infected women
+df_pcosfeatures_X.drop('BMI', axis=1, inplace=True)
+df_pcosfeatures_X.drop('FSH/LH', axis=1, inplace=True)
+df_pcosfeatures_X.drop('Waist:Hip Ratio', axis=1, inplace=True)
+df_pcosfeatures_X['FSH/LH'] = df_pcosfeatures_X['FSH(mIU/mL)'] / df_pcosfeatures_X['LH(mIU/mL)']
+df_pcosfeatures_X['Waist:Hip Ratio'] = df_pcosfeatures_X['Waist(inch)'] / df_pcosfeatures_X['Hip(inch)']
+df_pcosfeatures_X['Weight (Kg)'] = df_pcosfeatures_X['Weight (Kg)'].round(1)
+df_pcosfeatures_X['FSH/LH'] = df_pcosfeatures_X['FSH/LH'].round(2)
+df_pcosfeatures_X['Waist:Hip Ratio'] = df_pcosfeatures_X['Waist:Hip Ratio'].round(2)
+df_pcosfeatures_X['Height(Cm)'] = df_pcosfeatures_X['Height(Cm)'].round(1)
+df_pcosfeatures_X['BMI'] = df_pcosfeatures_X['Weight (Kg)'] / ((df_pcosfeatures_X['Height(Cm)']/100)**2)
+df_pcosfeatures_X['BMI'] = df_pcosfeatures_X['BMI'].round(2)
+df_pcosfeatures_X['II    beta-HCG(mIU/mL)'][123] = 1.99
+df_pcosfeatures_X['II    beta-HCG(mIU/mL)'] = df_pcosfeatures_X['II    beta-HCG(mIU/mL)'].astype(float)
+df_pcosfeatures_X['AMH(ng/mL)'][305] = 0.28
+df_pcosfeatures_X['AMH(ng/mL)'] = df_pcosfeatures_X['AMH(ng/mL)'].astype(float)
+df_pcosfeatures_X.shape
+def Normalize(dataframe): #apply MinMax normalisation to fit the values between 0 to 1
+  scaler = MinMaxScaler()
+  model = scaler.fit(dataframe)
+  scaled_data = model.transform(dataframe)
+  return scaled_data
+
+XF_sample = Normalize(df_pcosfeatures_X)
+YF_sample = df_pcosfeatures_Y.to_numpy(dtype='int64', copy='True'
+XF_sample[np.isnan(XF_sample)] = 0
+
+df_pcosmentalh.drop('SURNAME', axis=1, inplace=True)
+df_pcosmentalh = df_pcosmentalh.iloc[:73,] 
+df_pcosmentalh_X = df_pcosmentalh.loc[:, df_pcosmentalh.columns != 'INFERTILITY FACTOR']
+df_pcosmentalh_Y = df_pcosmentalh.loc[:, df_pcosmentalh.columns == 'INFERTILITY FACTOR']
+df_pcosmentalh_Y = df_pcosmentalh_Y.astype(int)
+df_pcosmentalh_Y.loc[df_pcosmentalh_Y['INFERTILITY FACTOR'] == 1, 'INFERTILITY FACTOR'] = 0
+df_pcosmentalh_Y.loc[df_pcosmentalh_Y['INFERTILITY FACTOR'] == 2, 'INFERTILITY FACTOR'] = 1
+print(df_pcosmentalh_Y['INFERTILITY FACTOR'].value_counts())
+XMH_sample = Normalize(df_pcosmentalh_X) #min-max feature scaling (normalization)
+YMH_sample = df_pcosmentalh_Y.to_numpy(dtype='int64', copy='True')
