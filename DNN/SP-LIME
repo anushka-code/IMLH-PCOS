@@ -1,0 +1,10 @@
+import lime
+import lime.lime_tabular
+from sklearn import linear_model
+from lime import submodular_pick
+explainer = lime.lime_tabular.LimeTabularExplainer(PCOS_FX_train, training_labels = PCOS_FY_train.values, feature_names = PCOS_FX_train.columns, mode = 'classification', discretize_continuous = False)
+sp_obj = submodular_pick.SubmodularPick(explainer, PCOS_FX_train.values[:], predict, sample_size= 25, num_features=21, num_exps_desired=5)
+W_matrix = pd.DataFrame([dict(this.as_list()) for this in sp_obj.explanations])
+matrix_mean = W_matrix.mean()
+plt.figure(figsize=(5,2))
+matrix_mean.sort_values(ascending=False).plot.bar(color=['orange', 'green'])
