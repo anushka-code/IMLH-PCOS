@@ -1,1 +1,12 @@
+from sklearn.model_selection import StratifiedKFold
 
+def CrossValidation(dataX,dataY): #split the dataset into train and test using k-5 fold cross validation
+  skf = StratifiedKFold(n_splits=5, random_state = None, shuffle=True) 
+
+  for train_index, test_index in skf.split(dataX , dataY):
+        X_crosstrain, X_crosstest = dataX[train_index], dataX[test_index] 
+        Y_crosstrain, Y_crosstest = dataY[train_index], dataY[test_index]
+        return X_crosstrain,X_crosstest,Y_crosstrain,Y_crosstest
+
+PCOSdf_FX_train, PCOSdf_FX_test, PCOSdf_FY_train, PCOSdf_FY_test = CrossValidation(PCOSF_X, PCOSF_Y)
+PCOSMH_X_train, PCOSMH_X_test, PCOSMH_Y_train, PCOSMH_Y_test = CrossValidation(PCOSMH_X, PCOSMH_Y)
