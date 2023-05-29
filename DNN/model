@@ -1,0 +1,22 @@
+from tensorflow.keras.layers import Input, Dense, BatchNormalization
+from tensorflow.keras.models import Model
+from tensorflow.keras.callbacks import EarlyStopping
+inputs = Input(shape=(PCOS_FX_train.shape[1],), name='input')
+x = BatchNormalization(name='input_bn')(inputs)
+x = Dense(PCOS_FX_train.shape[1], activation='relu', name='first')(x)
+x = Dense(64, activation='relu',name='second')(x)
+x = Dense(PCOS_FX_train.shape[1], activation='relu',name='last')(x)
+predictions = Dense(1, activation='sigmoid', name='ouput')(x)
+model = Model(inputs=inputs, outputs=predictions)
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics="accuracy")
+model.fit(PCOS_FX_train, PCOS_FY_train, epochs = 30, batch_size = 25, validation_data = (PCOS_FX_test, PCOS_FY_test), shuffle=True, callbacks=[EarlyStopping(monitor='val_loss', patience=1,)])
+val_loss = model.history.history['val_loss']
+loss = model.history.history['loss']
+print(model.summary())
+import matplotlib.pyplot as plt
+plt.figure()
+plt.plot(val_loss, label='val_loss')
+plt.plot(loss, label = 'loss')
+plt.legend()
+plt.show()
+
