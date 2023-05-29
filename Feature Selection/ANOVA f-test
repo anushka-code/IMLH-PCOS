@@ -1,1 +1,21 @@
+def select_features_two(X_train, y_train, X_test):
+ fs = SelectKBest(score_func=f_classif, k='all')
+ fs.fit(X_train, y_train)
+ X_train_fs = fs.transform(X_train)
+ X_test_fs = fs.transform(X_test)
+ return X_train_fs, X_test_fs, fs
+
+PCOS_FX_train_AN, PCOS_FX_test_AN, fs = select_features_two(PCOS_FX_train, PCOS_FY_train, PCOS_FX_test)
+for i in range(len(fs.scores_)):
+  print(column_names[i], fs.scores_[i])
+
+  pyplot.bar([i for i in range(len(fs.scores_))], fs.scores_)
+  pyplot.show()
+
+PCOSMH_X_train_MI, PCOSMH_X_test_MI, fs = select_features_two(PCOSMH_X_train , PCOSMH_Y_train, PCOSMH_X_test)
+for i in range(len(fs.scores_)):
+  print(column_names2[i], fs.scores_[i])
+
+pyplot.bar([i for i in range(len(fs.scores_))], fs.scores_)
+pyplot.show()
 
