@@ -1,1 +1,9 @@
-
+import eli5
+eli5.show_weights(lr_model, feature_names=all_features)
+eli5.show_prediction(lr_model, X_test.iloc[i], feature_names=all_features, show_feature_values=True)
+dt_model = DecisionTreeClassifier(class_weight="balanced")
+eli5.show_weights(dt_model, feature_names=all_features )
+from eli5.sklearn import PermutationImportance
+perm = PermutationImportance(dt_model, scoring="balanced_accuracy")
+perm.fit(X_test, y_test)
+eli5.show_weights(perm, feature_names=all_features)
