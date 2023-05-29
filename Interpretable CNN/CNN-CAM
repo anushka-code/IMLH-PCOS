@@ -24,6 +24,7 @@ def upload_imgs(img_folder):
     #print(image.dtype)
       
   print('UPLOAD DONE')
+  print('UPLOADED')
   return img_array
   
   from torchvision import transforms
